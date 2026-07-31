@@ -13,6 +13,7 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 
 - Download videos from 1000+ supported sites (via [yt-dlp](https://github.com/yt-dlp/yt-dlp))
 - MP4 video or MP3 audio extraction
+- YouTube Music album/playlist MP3 mode with track order, metadata, cover art, and ZIP export
 - Quality/resolution picker
 - Bulk downloads — paste multiple URLs at once
 - Automatic URL deduplication
@@ -44,6 +45,20 @@ docker build -t reclip . && docker run -p 8899:8899 reclip
 4. Select quality/resolution if available
 5. Click **Download** on individual videos, or **Download All**
 
+### YouTube Music albums and playlists
+
+In **MP3** mode, paste a YouTube Music album or playlist link and click **Fetch**. ReClip keeps the original album/playlist context instead of splitting the link into loose tracks, then downloads the full set as:
+
+```text
+Artist - Album.zip
+└── Artist - Album/
+    ├── 01 - First track.mp3
+    ├── 02 - Second track.mp3
+    └── ...
+```
+
+Each MP3 is tagged with the metadata yt-dlp can detect, including title, artist, album artist, album, track number, disc number, date, and embedded cover art when available. If one track fails, ReClip keeps going and builds the ZIP from the tracks that succeeded.
+
 ## Supported Sites
 
 Anything [yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md), including:
@@ -55,7 +70,8 @@ YouTube, TikTok, Instagram, Twitter/X, Reddit, Facebook, Vimeo, Twitch, Dailymot
 - **Backend:** Python + Flask (~150 lines)
 - **Frontend:** Vanilla HTML/CSS/JS (single file, no build step)
 - **Download engine:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/)
-- **Dependencies:** 2 (Flask, yt-dlp)
+- **Metadata tags:** [Mutagen](https://mutagen.readthedocs.io/) writes Android-friendly ID3 tags
+- **Dependencies:** 3 (Flask, yt-dlp, Mutagen)
 
 ## Disclaimer
 

@@ -34,11 +34,9 @@ fi
 if [ ! -d "venv" ]; then
     echo "Setting up virtual environment..."
     python3 -m venv venv
-    source venv/bin/activate
-    pip install -q flask yt-dlp
-else
-    source venv/bin/activate
 fi
+source venv/bin/activate
+pip install -q -r requirements.txt
 
 # Keep yt-dlp fresh — sites (Instagram, Facebook, etc.) break its extractors
 # frequently, and the usual fix is simply updating yt-dlp. Skip with RECLIP_NO_UPDATE=1.

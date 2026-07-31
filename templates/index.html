@@ -270,6 +270,22 @@
     .card-status.done { color: var(--success); }
     .card-status.error { color: var(--error); }
 
+    .progress {
+      flex-basis: 100%;
+      width: 100%;
+      height: 5px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #ebe8e2;
+      margin-top: 6px;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0;
+      background: var(--accent);
+      transition: width 0.25s ease;
+    }
+
     .q-chip {
       padding: 4px 10px;
       border: 1.5px solid var(--card-border);
@@ -388,7 +404,7 @@
     </div>
 
     <textarea id="urls" placeholder="Paste one or more URLs..." rows="2"></textarea>
-    <p class="hint">Multiple links? Separate with spaces, commas, or newlines.</p>
+    <p class="hint">Multiple links? Separate with spaces, commas, or newlines. YouTube Music albums/playlists in MP3 mode are saved as one tagged ZIP.</p>
 
     <div class="controls">
       <div class="pill-group">
@@ -419,6 +435,20 @@
 
     function parseUrls(text) {
       return [...new Set(text.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http')))];
+    }
+
+    function isPlaylistLikeUrl(url) {
+      try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
+        return parsed.searchParams.has('list') ||
+          (host.includes('music.youtube.com') && (
+            parsed.pathname.includes('/browse') ||
+            parsed.pathname.includes('/playlist')
+          ));
+      } catch {
+        return url.includes('list=');
+      }
     }
 
     function fmtDur(s) {
@@ -462,30 +492,37 @@
       container.innerHTML = '';
       cardData = [];
 
-      // Check if youtube playlist URL
-      for (let i = 0; i < urls.length; i++) {
-        if (urls[i].includes('list=')) {
+      const items = [];
+      for (const url of urls) {
+        if (currentFormat === 'audio' && isPlaylistLikeUrl(url)) {
+          items.push({ type: 'album', url });
+        } else if (url.includes('list=')) {
           const res = await fetch('/api/playlist', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: urls[i] }),
+            body: JSON.stringify({ url }),
           });
           const data = await res.json();
-          if (data.urls) {
-            // replace playlist URL with individual video URLs
-            urls.splice(i, 1, ...data.urls);
+          if (data.urls && data.urls.length) {
+            data.urls.forEach(u => items.push({ type: 'single', url: u }));
+          } else {
+            items.push({ type: 'single', url });
           }
+        } else {
+          items.push({ type: 'single', url });
         }
       }
 
-      for (let i = 0; i < urls.length; i++) {
-        const url = urls[i];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const url = item.url;
         const idx = cardData.length;
         cardData.push({ url, status: 'loading' });
         renderCard(idx);
 
         try {
-          const res = await fetch('/api/info', {
+          const endpoint = item.type === 'album' ? '/api/playlist' : '/api/info';
+          const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url }),
@@ -496,11 +533,13 @@
           } else {
             cardData[idx] = {
               ...cardData[idx],
+              isAlbum: item.type === 'album',
               status: 'ready',
               title: data.title || '',
               thumbnail: data.thumbnail || '',
               duration: data.duration,
               uploader: data.uploader || '',
+              trackCount: data.track_count || 0,
               formats: data.formats || [],
               selectedFormatId: data.formats?.[0]?.id || null,
             };
@@ -552,7 +591,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-title" style="color:var(--error)">Could not fetch video</div>
+            <div class="card-title" style="color:var(--error)">Could not fetch media</div>
             <div class="card-error-msg">${esc(friendlyError(c.error || ''))}</div>
             <div class="card-error-url">${esc(c.url)}</div>
           </div>
@@ -565,10 +604,10 @@
       const isAudio = currentFormat === 'audio';
 
       let thumbHtml;
-      if (isAudio) {
-        thumbHtml = `<div class="no-thumb" style="color:var(--accent)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`;
-      } else if (c.thumbnail) {
+      if (c.thumbnail) {
         thumbHtml = `<img src="${c.thumbnail}" alt="">`;
+      } else if (isAudio) {
+        thumbHtml = `<div class="no-thumb" style="color:var(--accent)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`;
       } else {
         thumbHtml = `<div class="no-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div>`;
       }
@@ -582,22 +621,39 @@
 
       let actionHtml = '';
       if (c.status === 'ready') {
-        actionHtml = `<button class="card-dl-btn" onclick="dlCard(${idx})">Download</button>${qualityChips}`;
+        actionHtml = `<button class="card-dl-btn" onclick="dlCard(${idx})">${c.isAlbum ? 'Download ZIP' : 'Download'}</button>${qualityChips}`;
       } else if (c.status === 'downloading') {
-        actionHtml = `<span class="card-status downloading"><span class="spin"></span> Downloading...</span>`;
+        const done = c.completed ?? 0;
+        const total = c.total ?? c.trackCount ?? 0;
+        const progress = c.progress ?? (total ? Math.round((done / total) * 100) : 0);
+        const label = c.isAlbum && total
+          ? `${done}/${total} tracks${progress ? ` · ${progress}%` : ''}`
+          : 'Downloading...';
+        actionHtml = `<span class="card-status downloading"><span class="spin"></span> ${esc(c.message || label)}</span>`;
+        if (c.isAlbum) {
+          actionHtml += `<div class="progress"><div class="progress-fill" style="width:${Math.max(0, Math.min(100, progress))}%"></div></div>`;
+        }
       } else if (c.status === 'done') {
-        actionHtml = `<button class="card-dl-btn done" onclick="saveCard(${idx})">Save</button>
+        actionHtml = `<button class="card-dl-btn done" onclick="saveCard(${idx})">${c.isAlbum ? 'Save ZIP' : 'Save'}</button>
           <span class="card-status done">${esc(c.filename || '')}</span>`;
+        if (c.warning) {
+          actionHtml += `<span class="card-status error">${esc(c.warning)}</span>`;
+        }
       } else if (c.status === 'error') {
         actionHtml = `<button class="card-dl-btn" onclick="dlCard(${idx})">Retry</button>
           <span class="card-status error">${esc(friendlyError(c.error || 'Download failed'))}</span>`;
       }
 
+      const metaParts = [];
+      if (c.uploader) metaParts.push(c.uploader);
+      if (c.isAlbum && c.trackCount) metaParts.push(`${c.trackCount} tracks`);
+      if (!c.isAlbum && c.duration) metaParts.push(fmtDur(c.duration));
+
       el.innerHTML = `
         <div class="card-thumb">${thumbHtml}</div>
         <div class="card-body">
           <div class="card-title">${esc(c.title || 'Untitled')}</div>
-          <div class="card-meta">${esc(c.uploader)}${c.duration ? ' · ' + fmtDur(c.duration) : ''}</div>
+          <div class="card-meta">${esc(metaParts.join(' · '))}</div>
           <div class="card-actions">${actionHtml}</div>
         </div>
       `;
@@ -634,6 +690,7 @@
             format: currentFormat,
             format_id: c.selectedFormatId,
             title: c.title || '',
+            album: !!c.isAlbum,
           }),
         });
         const data = await res.json();
@@ -662,12 +719,23 @@
             clearInterval(iv);
             c.status = 'done';
             c.filename = data.filename;
+            c.progress = data.progress;
+            c.completed = data.completed;
+            c.total = data.total;
+            c.warning = data.warning;
             renderCard(idx);
             saveCard(idx);
           } else if (data.status === 'error') {
             clearInterval(iv);
             c.status = 'error';
             c.error = data.error;
+            renderCard(idx);
+          } else if (data.status === 'downloading') {
+            c.progress = data.progress;
+            c.completed = data.completed;
+            c.total = data.total;
+            c.message = data.message;
+            c.warning = data.warning;
             renderCard(idx);
           }
         } catch {
