@@ -173,7 +173,13 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      object-position: center;
       display: block;
+    }
+    .card.card-audio .card-thumb {
+      width: 80px;
+      min-width: 80px;
+      height: 80px;
     }
     /* No-thumbnail icon */
     .card-thumb .no-thumb {
@@ -390,6 +396,11 @@
         min-width: unset;
         height: 160px;
       }
+      .card.card-audio .card-thumb {
+        width: 120px;
+        min-width: 120px;
+        height: 120px;
+      }
       .card-title { white-space: normal; }
       .controls { flex-wrap: wrap; }
       .fetch-btn { width: 100%; }
@@ -517,7 +528,7 @@
         const item = items[i];
         const url = item.url;
         const idx = cardData.length;
-        cardData.push({ url, status: 'loading' });
+        cardData.push({ url, status: 'loading', format: currentFormat });
         renderCard(idx);
 
         try {
@@ -560,6 +571,8 @@
 
     function renderCard(idx) {
       const c = cardData[idx];
+      const isAudio = c.format === 'audio';
+      const cardClass = isAudio ? 'card card-audio' : 'card';
       let el = document.getElementById(`card-${idx}`);
       if (!el) {
         el = document.createElement('div');
@@ -570,7 +583,7 @@
 
       // Loading skeleton
       if (c.status === 'loading') {
-        el.className = 'card';
+        el.className = cardClass;
         el.innerHTML = `
           <div class="card-thumb loading"></div>
           <div class="card-body">
@@ -583,7 +596,7 @@
 
       // Error state
       if (c.status === 'info-error') {
-        el.className = 'card card-error';
+        el.className = `${cardClass} card-error`;
         el.innerHTML = `
           <div class="card-thumb">
             <div class="card-error-icon">
@@ -600,8 +613,7 @@
       }
 
       // Ready / downloading / done / error states
-      el.className = 'card';
-      const isAudio = currentFormat === 'audio';
+      el.className = cardClass;
 
       let thumbHtml;
       if (c.thumbnail) {
@@ -687,7 +699,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: c.url,
-            format: currentFormat,
+            format: c.format,
             format_id: c.selectedFormatId,
             title: c.title || '',
             album: !!c.isAlbum,

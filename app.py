@@ -314,6 +314,8 @@ def run_download(job_id, url, format_choice, format_id):
             "--embed-metadata",
             "--embed-thumbnail",
             "--convert-thumbnails", "jpg",
+            "--write-info-json",
+            "--write-thumbnail",
         ]
     elif format_id:
         cmd += ["-f", f"{format_id}+bestaudio/best", "--merge-output-format", "mp4"]
@@ -338,6 +340,7 @@ def run_download(job_id, url, format_choice, format_id):
         if format_choice == "audio":
             target = [f for f in files if f.endswith(".mp3")]
             chosen = target[0] if target else files[0]
+            embed_id3_metadata(chosen)
         else:
             target = [f for f in files if f.endswith(".mp4")]
             chosen = target[0] if target else files[0]
