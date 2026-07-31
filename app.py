@@ -1,6 +1,7 @@
 import os
 import uuid
 import glob
+import io
 import json
 import re
 import shutil
@@ -8,6 +9,7 @@ import subprocess
 import threading
 import zipfile
 from flask import Flask, request, jsonify, send_file, render_template
+from PIL import Image, ImageOps
 from mutagen.id3 import (
     APIC,
     ID3,
@@ -199,6 +201,32 @@ def track_number_from_filename(mp3_path):
     return match.group(1) if match else ""
 
 
+def square_cover_data(cover_path, max_size=1200):
+    """Return a centered square JPEG cover suitable for embedded album art."""
+    with Image.open(cover_path) as source:
+        image = ImageOps.exif_transpose(source)
+        width, height = image.size
+        side = min(width, height)
+        left = (width - side) // 2
+        top = (height - side) // 2
+        image = image.crop((left, top, left + side, top + side))
+
+        if side > max_size:
+            image = image.resize((max_size, max_size), Image.Resampling.LANCZOS)
+
+        if image.mode != "RGB":
+            background = Image.new("RGB", image.size, "white")
+            if "A" in image.getbands():
+                background.paste(image, mask=image.getchannel("A"))
+            else:
+                background.paste(image)
+            image = background
+
+        output = io.BytesIO()
+        image.save(output, format="JPEG", quality=92, optimize=True)
+        return output.getvalue()
+
+
 def embed_id3_metadata(mp3_path, album_title="", album_artist=""):
     """Write core ID3 tags after yt-dlp finishes, with Android-friendly ID3v2.3."""
     info = load_track_info(mp3_path)
@@ -242,13 +270,11 @@ def embed_id3_metadata(mp3_path, album_title="", album_artist=""):
 
     cover_path = find_sidecar_file(mp3_path, ["jpg", "jpeg", "png"])
     if cover_path:
-        with open(cover_path, "rb") as cover:
-            cover_data = cover.read()
-        mime = "image/png" if cover_path.lower().endswith(".png") else "image/jpeg"
+        cover_data = square_cover_data(cover_path)
         tags.delall("APIC")
         tags.add(APIC(
             encoding=3,
-            mime=mime,
+            mime="image/jpeg",
             type=3,
             desc="Cover",
             data=cover_data,

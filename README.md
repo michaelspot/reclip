@@ -57,7 +57,7 @@ Artist - Album.zip
     └── ...
 ```
 
-Each MP3 is tagged with the metadata yt-dlp can detect, including title, artist, album artist, album, track number, disc number, date, and embedded cover art when available. If one track fails, ReClip keeps going and builds the ZIP from the tracks that succeeded.
+Each MP3 is tagged with the metadata yt-dlp can detect, including title, artist, album artist, album, track number, disc number, date, and embedded cover art when available. YouTube's landscape thumbnails are center-cropped to a square before being embedded, so album artwork displays correctly in mobile music players. If one track fails, ReClip keeps going and builds the ZIP from the tracks that succeeded.
 
 ## Supported Sites
 
