@@ -9,6 +9,11 @@ https://github.com/user-attachments/assets/419d3e50-c933-444b-8cab-a9724986ba05
 
 ![ReClip MP3 Mode](assets/preview-mp3.png)
 
+## Main updates from this fork - Lycha
+
+- Paste a link from Youtube or any music platform to download all the titles all at once in 1 .zip file, and transfer it directly to a Sidephone or mp3 reader
+  All the titles will be in the original order and album photo preview will be the original too.
+
 ## Features
 
 - Download videos from 1000+ supported sites (via [yt-dlp](https://github.com/yt-dlp/yt-dlp))
